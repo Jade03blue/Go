@@ -1,0 +1,47 @@
+package main
+
+import (
+	"fmt"
+	"github.com/sjwhitworth/golearn/base"
+	"github.com/sjwhitworth/golearn/evaluation"
+	"github.com/sjwhitworth/golearn/linear_models"
+	"github.com/sjwhitworth/golearn/text"
+)
+
+func main() {
+	// Load the dataset
+	rawData, err := base.ParseCSVToInstances("reviews.csv", true)
+	if err != nil {
+		panic(err)
+	}
+
+	// Split the dataset into training and testing sets
+	trainData, testData := base.InstancesTrainTestSplit(rawData, 0.5)
+
+	// Convert the raw text data into a matrix of features
+	vectorizer := text.NewCountVectorizer()
+	vectorizer.Fit(trainData)
+	trainX, _ := vectorizer.Transform(trainData)
+	testX, _ := vectorizer.Transform(testData)
+
+	// Convert the labels into numerical values
+	le := base.NewCategoricalLabelEncoder()
+	le.Fit(trainData)
+	trainY, _ := le.Transform(trainData)
+	testY, _ := le.Transform(testData)
+
+	// Train a linear model on the training data
+	model := linear_models.NewLinearSVC()
+	model.Fit(trainX, trainY)
+
+	// Evaluate the model on the testing data
+	predictions, err := model.Predict(testX)
+	if err != nil {
+		panic(err)
+	}
+	cm, err := evaluation.GetConfusionMatrix(testY, predictions, le)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(cm)
+}

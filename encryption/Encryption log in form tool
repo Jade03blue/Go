@@ -1,0 +1,126 @@
+package main
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"net/http"
+)
+
+func main() {
+	http.HandleFunc("/", loginForm)
+	http.HandleFunc("/login", login)
+	http.ListenAndServe(":8080", nil)
+}
+
+func loginForm(w http.ResponseWriter, r *http.Request) {
+	html := `
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <title>Login Form</title>
+        </head>
+        <body>
+            <h1>Login Form</h1>
+            <form method="post" action="/login">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username"><br><br>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password"><br><br>
+                <input type="submit" value="Submit">
+            </form>
+        </body>
+    </html>
+    `
+	fmt.Fprint(w, html)
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		encryptedPassword, err := encrypt(password)
+		if err != nil {
+			fmt.Println("Error encrypting password:", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Save the encrypted password to a file or database
+		err = ioutil.WriteFile(username+".txt", []byte(encryptedPassword), 0644)
+		if err != nil {
+			fmt.Println("Error saving encrypted password:", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Display a success message
+		html := `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Login Form</title>
+            </head>
+            <body>
+                <h1>Login Form</h1>
+                <p>Your password has been encrypted and saved.</p>
+            </body>
+        </html>
+        `
+		fmt.Fprint(w, html)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func encrypt(plaintext string) (string, error) {
+	key := []byte("a very secret key") // 16, 24, or 32 bytes
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// The IV needs to be unique, but not secure.
+	// It's common to include it at the beginning of the ciphertext.
+	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return "", err
+	}
+
+	stream := cipher.NewCTR(block, iv)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], []byte(plaintext))
+
+	// Encode the ciphertext in base64 for storage or transmission
+	encoded := base64.StdEncoding.EncodeToString(ciphertext)
+
+	return encoded, nil
+}
+
+func decrypt(encoded string) (string, error) {
+	key := []byte("a very secret key") // 16, 24, or 32 bytes
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	// Decode the base64 encoded ciphertext
+ ciphertext, err := base64.StdEncoding.DecodeString(encoded)
+ if err != nil {
+	 return "", err
+ }
+
+ // The IV is stored at the beginning of the ciphertext
+ iv := ciphertext[:aes.BlockSize]
+ ciphertext = ciphertext[aes.BlockSize:]
+
+ stream := cipher.NewCTR(block, iv)
+ stream.XORKeyStream(ciphertext, ciphertext)
+
+ return string(ciphertext), nil
+}

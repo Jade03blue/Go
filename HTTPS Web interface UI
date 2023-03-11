@@ -1,0 +1,24 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
+
+func main() {
+	http.HandleFunc("/", handler)
+
+	// Load SSL certificate and key files
+	certFile := "path/to/cert.pem"
+	keyFile := "path/to/key.pem"
+
+	// Start HTTPS server
+	log.Fatal(http.ListenAndServeTLS(":443", certFile, keyFile, nil))
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	// Serve static HTML file
+	http.ServeFile(w, r, "index.html")
+}
+
